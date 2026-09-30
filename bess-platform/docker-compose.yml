@@ -1,0 +1,9 @@
+services:
+  bess:
+    build: .
+    env_file: .env
+    ports: ["8000:8000"]
+    volumes: ["bess-data:/data"]
+    restart: unless-stopped
+volumes:
+  bess-data:

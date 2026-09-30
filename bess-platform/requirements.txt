@@ -1,0 +1,1 @@
+openpyxl>=3.1   # optional: enables Excel export

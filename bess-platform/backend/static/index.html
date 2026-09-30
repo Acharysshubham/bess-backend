@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BESS Sizing Workbench</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eaf0f2;--card:#fff;--ink:#10232b;--mut:#5b6f78;--ac:#0d6e8a;--ok:#17803d;--bad:#c0392b;--ln:#c9d6db;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e191e;--card:#16262d;--ink:#e6eff2;--mut:#93a8b0;--ac:#4cc3e3;--ok:#4cd07d;--bad:#ff7b6b;--ln:#2a3f48}}
+:root[data-theme="dark"]{--bg:#0e191e;--card:#16262d;--ink:#e6eff2;--mut:#93a8b0;--ac:#4cc3e3;--ok:#4cd07d;--bad:#ff7b6b;--ln:#2a3f48}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Barlow,system-ui,sans-serif;max-width:900px;margin:auto;padding:0 12px 40px}
+header{padding:14px 0 6px}h1{font-size:22px;margin:0}h2{font-size:16px;margin:18px 0 8px}
+.sub{color:var(--mut);font-size:13px}
+nav{display:flex;gap:6px;overflow-x:auto;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding:8px 0;z-index:2}
+nav button{flex:1 0 auto;padding:9px 12px;border:1px solid var(--ln);background:var(--card);color:var(--ink);border-radius:8px;font:600 14px Barlow,sans-serif}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:12px;margin:8px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+label{display:block;font-size:12px;color:var(--mut)}
+input{width:100%;padding:8px;border:1px solid var(--ln);border-radius:6px;background:var(--bg);color:var(--ink);font:600 15px Barlow,sans-serif}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:5px 6px;text-align:right;border-bottom:1px solid var(--ln);white-space:nowrap}th:first-child,td:first-child{text-align:left}
+td input{width:64px;padding:4px}
+.p{color:var(--ok);font-weight:700}.f{color:var(--bad);font-weight:700}
+.big{font-size:26px;font-weight:700}.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.banner{padding:12px;border-radius:10px;color:#fff;font-weight:700;text-align:center}
+textarea,select,button.act{padding:9px;border-radius:6px;border:1px solid var(--ln);background:var(--card);color:var(--ink);font:600 14px Barlow,sans-serif;width:100%}
+pre{white-space:pre-wrap;font:13px/1.5 Barlow,sans-serif;margin:0}
+</style></head><body>
+<header><h1>BESS Sizing Workbench</h1><div class="sub">Formulas from BESS SIZING SOFTWARE.docx. Runs in your browser; inputs stay on this device.</div></header>
+<nav id="nav"><button data-t="in" class="on">Inputs</button><button data-t="yr">Years</button><button data-t="ld">Load</button><button data-t="ds">Design</button><button data-t="rs">Results</button><button data-t="wi">What-if</button><button data-t="ak">Ask</button><button data-t="ac">Account</button></nav>
+<section id="in" class="on"></section>
+<section id="yr"><div class="card"><div class="sub">Edit SOH, calendar degradation, DC-DC RTE and the required POI energy for any year. Everything recalculates.</div></div><div class="card tw" id="ytab"></div></section>
+<section id="ld"></section><section id="ds"></section><section id="rs"></section><section id="ak"></section><section id="ac"></section>
+<section id="wi"></section>
+<script>
+const D={cap:5,N:4,cMW:2.5,auxD:0.01,auxC:0.01,other:0,standby:0,Td:2,Tc:2,infra:0,avail:98.5,dcEff:98,mism:99,dod:95,
+reqE:12,reqMW:5,reqRTE:78,cMax:0.6,life:15,fat:0,sat:0,aug:{8:1},
+pcsMW:2.5,pcsOver:100,pcsRed:0,costCont:1000,costPcs:150,bop:500,costAug:900,lp:"",lint:15,lgt:2.5,eff:{lv:99.5,pcs:98.5,idtc:99.5,idt:99,dcdb:99.8,mv:99.7,mpt:99.3,kv:99.8,meas:99.8},rows:[]};
+const F=[['cap','DC capacity per container','MWh'],['N','Initial containers','nos'],['cMW','Max power per container','MW'],['auxD','Aux per container, discharge','MW'],['auxC','Aux per container, charge','MW'],['other','Other aux (HVAC, fire, EMS)','MW'],['standby','Standby load','MW'],['infra','AC MV power to plant infra','MW'],['Td','Discharge time','h'],['Tc','Charge time','h'],['avail','BESS availability','%'],['dcEff','DC discharge efficiency','%'],['mism','Mismatch losses factor','%'],['dod','DOD','%'],['reqE','Required POI energy (all years)','MWh'],['reqMW','Required POI power','MW'],['reqRTE','Required AC RTE','%'],['cMax','Battery allowable C-rate','C'],['life','Project life','years'],['fat','FAT duration (0 = none, max 6)','months'],['sat','SAT duration (0 = none, max 6)','months']];
+const E=[['lv','LV (DC) cable'],['pcs','PCS'],['idtc','PCS to IDT cable'],['idt','IDT'],['dcdb','DC DB'],['mv','MV cable + switchgear'],['mpt','Main power transformer'],['kv','11 kV cable'],['meas','Measurement accuracy']];
+let S;try{S=JSON.parse(localStorage.getItem('bess1'))}catch(e){}S=S||JSON.parse(JSON.stringify(D));
+const $=id=>document.getElementById(id),P=v=>v/100,f2=n=>isFinite(n)?n.toFixed(2):'-';
+function build(){const old={};S.rows.forEach(r=>old[r.l]=r);const L=[];
+ if(S.fat>0)L.push({l:'FAT',y:0});if(S.sat>0)L.push({l:'SAT',y:0});
+ for(let y=1;y<=S.life;y++)L.push({l:'Y'+y,y});
+ S.rows=L.map(r=>old[r.l]||{...r,soh:r.y?+(100-1.6*r.y).toFixed(1):100,cal:r.y?+(100-0.4*r.y).toFixed(1):100,rte:98,req:S.reqE});}
+function calc(s){const chain=Object.values(s.eff).reduce((a,v)=>a*P(v),1);
+ const aD=s.N*s.auxD+s.other+s.standby,aC=s.N*s.auxC+s.other+s.standby;
+ const out=s.rows.map(r=>{const f=P(s.dcEff)*P(s.mism)*P(s.dod)*P(r.soh)*P(r.cal),dc=s.cap*s.N*P(s.avail)*f;
+  const dEx=dc*chain,dIn=dEx-aD*s.Td,cEx=dc/chain/P(r.rte),cIn=cEx+aC*s.Tc;
+  const an=r.y>=1?Object.entries(s.aug).reduce((a,[k,v])=>a+(+k<=r.y?+v:0),0):0,ac=an*s.cap*f;
+  const xD=ac*chain-an*s.auxD*s.Td,xC=ac/chain/P(r.rte)+an*s.auxC*s.Tc;
+  const totD=dIn+xD-s.infra*s.Td,totC=cIn+xC+s.infra*s.Tc,rte=totD/totC*100,rteEx=(dEx+ac*chain)/(cEx+ac/chain/P(r.rte))*100;
+  const mw=(s.N+an)*s.cMW*chain,cr=s.reqMW/((s.N+an)*s.cap);
+  const ok={E:totD>=r.req,R:rte>=s.reqRTE,P:mw>=s.reqMW,C:cr<=s.cMax};
+  return{r,dc,dEx,dIn,cEx,cIn,an,ac,totD,totC,rte,rteEx,mw,cr,ok,pass:ok.E&&ok.R&&ok.P&&ok.C}});
+ return{chain,out,pass:out.every(o=>o.pass)}}
+function minN(s){for(let n=1;n<=300;n++){if(calc({...s,N:n}).pass)return n}return null}
+const B=(v)=>v?'<span class="p">MATCHED</span>':'<span class="f">NOT MATCHED</span>';
+function get(o,p){return p.split('.').reduce((a,k)=>a[k],o)}
+function set(o,p,v){const k=p.split('.'),l=k.pop();get(o,k.join('.')||'x'.replace('x','')||'') ;}
+function setP(o,p,v){const k=p.split('.');let c=o;while(k.length>1)c=c[k.shift()];c[k[0]]=v}
+function inputs(){let h='<h2>Equipment and duty</h2><div class="card grid">'+F.map(([k,l,u])=>`<div><label>${l} (${u})</label><input type="number" step="any" data-p="${k}" value="${S[k]}"></div>`).join('')+'</div>';
+ h+='<h2>Efficiency chain (%)</h2><div class="card grid">'+E.map(([k,l])=>`<div><label>${l}</label><input type="number" step="any" data-p="eff.${k}" value="${S.eff[k]}"></div>`).join('')+'</div>';
+ h+='<h2>Augmentation</h2><div class="card"><div class="sub">Containers added in a given year. Zero before that year; cumulative afterwards.</div><div class="grid" id="aug"></div><button class="act" id="addaug" style="margin-top:8px">Add augmentation event</button></div>';
+ $('in').innerHTML=h;augUI();
+ $('addaug').onclick=()=>{let y=1;while(S.aug[y]!==undefined)y++;if(y<=S.life){S.aug[y]=1;augUI();run()}}}
+function augUI(){$('aug').innerHTML=Object.entries(S.aug).map(([y,n])=>`<div><label>Year ${y}: containers added</label><input type="number" min="0" data-aug="${y}" value="${n}"></div>`).join('')||'<div class="sub">No augmentation. Add an event to enable it.</div>'}
+function ytab(){let h='<table><tr><th>Yr</th><th>Months</th><th>SOH %</th><th>Cal %</th><th>DC-DC RTE %</th><th>Req POI MWh</th></tr>';
+ S.rows.forEach((r,i)=>{h+=`<tr><td>${r.l}</td><td>${r.l==='FAT'?S.fat:r.l==='SAT'?S.sat:''}</td>`+['soh','cal','rte','req'].map(k=>`<td><input type="number" step="any" data-r="${i}" data-k="${k}" value="${r[k]}"></td>`).join('')+'</tr>'});
+ $('ytab').innerHTML=h+'</table>'}
+function chart(c){const o=c.out,W=320,H=140,mx=Math.max(...o.map(x=>Math.max(x.totD,x.r.req)))*1.1||1,X=i=>20+i*(W-30)/Math.max(o.length-1,1),Y=v=>H-15-Math.max(v,0)/mx*(H-25);
+ const pl=(fn,col,d)=>`<polyline fill="none" stroke="${col}" stroke-width="2" ${d?'stroke-dasharray="4 3"':''} points="${o.map((x,i)=>X(i)+','+Y(fn(x))).join(' ')}"/>`;
+ return`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="POI energy by year">${pl(x=>x.r.req,'var(--bad)',1)}${pl(x=>x.totD,'var(--ac)')}<text x="20" y="10" font-size="10" fill="var(--mut)">POI MWh (solid) vs required (dashed), max ${f2(mx)}</text></svg>`}
+function results(){const c=calc(S),o=c.out,n=minN(S);
+ const eol=Math.min(...o.map(x=>P(x.r.soh)*P(x.r.cal))),np=S.reqE/(P(S.dod)*P(S.dcEff)*eol),Ne=Math.ceil(np/S.cap),Np=Math.ceil(S.reqMW/S.cMW);
+ const last=o[o.length-1],y1=o.find(x=>x.r.y===1)||o[0];
+ let h=`<div class="banner" style="background:var(${c.pass?'--ok':'--bad'})">${c.pass?'TECHNICALLY COMPLIANT':'NOT COMPLIANT: '+o.filter(x=>!x.pass).length+' year(s) fail'}</div>
+ <div class="card kv"><div><label>Initial containers</label><div class="big">${S.N}</div></div><div><label>Minimum containers that pass every year</label><div class="big">${n??'none ≤300'}</div></div>
+ <div><label>Year 1 POI energy incl. aux</label><div class="big">${f2(y1.totD)} MWh</div></div><div><label>Final-year POI energy</label><div class="big">${f2(last.totD)} MWh</div></div>
+ <div><label>Year 1 AC RTE (incl. aux)</label><div class="big">${f2(y1.rte)}%</div></div><div><label>Efficiency chain product</label><div class="big">${f2(c.chain*100)}%</div></div></div>
+ <div class="card">${chart(c)}</div>
+ <div class="card"><b>Why ${Math.max(Ne,Np)} containers from the starting formula?</b><pre>Nameplate needed = ${S.reqE} / (DOD ${S.dod}% × DC eff ${S.dcEff}% × worst SOH·cal ${f2(eol*100)}%) = ${f2(np)} MWh
+N_energy = ceil(${f2(np)} / ${S.cap}) = ${Ne}
+N_power = ceil(${S.reqMW} / ${S.cMW}) = ${Np}
+N_required = MAX(${Ne}, ${Np}) = ${Math.max(Ne,Np)}
+Full year-by-year search (incl. losses, aux, RTE, C-rate, augmentation) gives ${n??'no solution'}.</pre></div>
+ <h2>Discharge, charge and comparison</h2><div class="card tw"><table><tr><th>Yr</th><th>DC MWh</th><th>Disch ex-aux</th><th>Aug</th><th>POI incl aux+aug</th><th>Req</th><th>Energy</th><th>Charge in</th><th>RTE ex</th><th>RTE incl</th><th>RTE</th><th>MW</th><th>C</th></tr>`;
+ o.forEach(x=>{h+=`<tr><td>${x.r.l}</td><td>${f2(x.dc)}</td><td>${f2(x.dEx)}</td><td>${x.an?'+'+x.an:'-'}</td><td>${f2(x.totD)}</td><td>${f2(x.r.req)}</td><td>${B(x.ok.E)}</td><td>${f2(x.totC)}</td><td>${f2(x.rteEx)}</td><td>${f2(x.rte)}</td><td>${B(x.ok.R)}</td><td>${B(x.ok.P)}</td><td>${B(x.ok.C)}</td></tr>`});
+ $('rs').innerHTML=h+'</table></div><div class="sub">Charge-in is AC energy drawn at POI including aux. Power = containers × MW × chain efficiency vs required POI power. C-rate = required MW / nameplate MWh.</div>'}
+function what(){const opts=[['dod','DOD %'],['dcEff','DC discharge efficiency %'],['avail','Availability %'],['eff.pcs','PCS efficiency %'],['eff.mpt','Transformer efficiency %'],['eff.lv','LV cable efficiency %'],['Td','Discharge hours'],['N','Initial containers'],['auxD','Aux MW per container'],['sohShift','SOH shift (points, all years)']];
+ $('wi').innerHTML=`<div class="card"><label>Parameter</label><select id="wp">${opts.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select><label style="margin-top:8px">New value (SOH shift is added to every year)</label><input id="wv" type="number" step="any"><button class="act" id="wg" style="margin-top:8px">Analyse system effect</button></div><div class="card" id="wo"><div class="sub">Pick a parameter and a new value to compare against your current design.</div></div>`;
+ $('wp').onchange=()=>{const k=$('wp').value;$('wv').value=k==='sohShift'?-2:get(S,k)};$('wp').onchange();
+ $('wg').onclick=()=>{const k=$('wp').value,v=+$('wv').value,b=JSON.parse(JSON.stringify(S)),t=JSON.parse(JSON.stringify(S));
+  if(k==='sohShift')t.rows.forEach(r=>r.soh=Math.min(100,r.soh+v));else setP(t,k,v);
+  const cb=calc(b),ct=calc(t),g=c=>{const a=c.out.find(x=>x.r.y===1)||c.out[0],z=c.out[c.out.length-1];return{y1:a.totD,z:z.totD,rte:z.rte,pass:c.out.filter(x=>x.pass).length,n:minN(k==='sohShift'?t:c===cb?b:t)}};
+  const A=g(cb),Z=g(ct),d=(a,b2)=>(b2-a>=0?'+':'')+f2(b2-a);
+  $('wo').innerHTML=`<div class="tw"><table><tr><th>Metric</th><th>Now</th><th>Changed</th><th>Delta</th></tr>
+  <tr><td>Year 1 POI MWh</td><td>${f2(A.y1)}</td><td>${f2(Z.y1)}</td><td>${d(A.y1,Z.y1)}</td></tr>
+  <tr><td>Final-year POI MWh</td><td>${f2(A.z)}</td><td>${f2(Z.z)}</td><td>${d(A.z,Z.z)}</td></tr>
+  <tr><td>Final-year RTE %</td><td>${f2(A.rte)}</td><td>${f2(Z.rte)}</td><td>${d(A.rte,Z.rte)}</td></tr>
+  <tr><td>Years compliant</td><td>${A.pass}/${cb.out.length}</td><td>${Z.pass}/${ct.out.length}</td><td>${Z.pass-A.pass}</td></tr>
+  <tr><td>Min containers needed</td><td>${A.n??'-'}</td><td>${Z.n??'-'}</td><td>${(A.n&&Z.n)?Z.n-A.n:'-'}</td></tr></table></div>
+  <pre style="margin-top:8px">Changing ${$('wp').selectedOptions[0].text} moves year-1 delivered energy by ${d(A.y1,Z.y1)} MWh (${f2((Z.y1/A.y1-1)*100)}%) and final-year energy by ${d(A.z,Z.z)} MWh. ${Z.n&&A.n?(Z.n>A.n?'You would need '+(Z.n-A.n)+' more container(s) to stay compliant.':Z.n<A.n?'You could remove '+(A.n-Z.n)+' container(s).':'Container count needed is unchanged.'):''}</pre>`}}
+
+function loadUI(){$('ld').innerHTML=`<div class="card"><label>Interval demand in MW, one value per line. Or load a CSV (last numeric column is used).</label><textarea id="lt" rows="5" style="width:100%">${S.lp||''}</textarea><input type="file" id="lf" accept=".csv,.txt" style="margin-top:6px"><div class="grid" style="margin-top:8px"><div><label>Interval (min)</label><select id="li">${[1,5,15,30,60].map(m=>`<option ${m==S.lint?'selected':''}>${m}</option>`).join('')}</select></div><div><label>Target grid demand (MW)</label><input id="lg" type="number" step="any" value="${S.lgt}"></div></div><button class="act" id="lb" style="margin-top:8px">Analyse profile</button></div><div id="lo"></div>`;
+ $('lf').onchange=e=>{const r=new FileReader();r.onload=()=>{$('lt').value=r.result.split(/\r?\n/).map(l=>l.split(',').map(Number).filter(x=>!isNaN(x)&&l.trim()!=='').pop()).filter(x=>x!==undefined).join('\n')};r.readAsText(e.target.files[0])};
+ $('lb').onclick=()=>{S.lp=$('lt').value;S.lint=+$('li').value;S.lgt=+$('lg').value;const v=S.lp.split(/\s+/).map(Number).filter(x=>!isNaN(x)&&x!==0||x===0&&false);
+  if(v.length<2){$('lo').innerHTML='<div class="card f">Enter at least two numeric values.</div>';return}
+  const h=S.lint/60,t=S.lgt,pk=Math.max(...v),mn=Math.min(...v),av=v.reduce((a,b)=>a+b,0)/v.length;let runs=[],cur=0,over=0,soc=S.cap*S.N*P(S.dod),e=soc,minE=soc,cap=S.cMW*S.N;
+  v.forEach(x=>{if(x>t){cur+=(x-t)*h;over++;e=Math.max(0,e-Math.min(x-t,cap)*h)}else{if(cur){runs.push(cur);cur=0}e=Math.min(soc,e+Math.min(t-x,cap)*h)}minE=Math.min(minE,e)});if(cur)runs.push(cur);
+  const tot=v.filter(x=>x>t).reduce((a,x)=>a+(x-t)*h,0),big=Math.max(0,...runs);
+  $('lo').innerHTML=`<div class="card kv"><div><label>Peak / min / avg (MW)</label><b>${f2(pk)} / ${f2(mn)} / ${f2(av)}</b></div><div><label>Required BESS power</label><b>${f2(Math.max(pk-t,0))} MW</b></div><div><label>Energy above target</label><b>${f2(tot)} MWh</b></div><div><label>Time above target</label><b>${f2(over*h)} h in ${runs.length} event(s)</b></div><div><label>Largest single event</label><b>${f2(big)} MWh</b></div><div><label>Lowest SOC reached (year-1 usable ${f2(soc)} MWh)</label><b class="${minE>0?'p':'f'}">${f2(minE/soc*100)}%</b></div></div><div class="card"><button class="act" id="lu">Use as requirement: ${f2(Math.max(pk-t,0))} MW and ${f2(big)} MWh per event</button><div class="sub" style="margin-top:6px">SOC simulation starts full, discharges above target and recharges below it at the fleet power limit. Efficiency losses are not in this quick check.</div></div>`;
+  $('lu').onclick=()=>{S.reqMW=+f2(Math.max(pk-t,0));S.reqE=+f2(big);S.rows.forEach(r=>r.req=S.reqE);inputs();ytab();run();$('lu').textContent='Requirement applied'}}}
+function design(){const ae=document.activeElement,dp=ae&&ae.dataset&&ae.dataset.p&&$('ds').contains(ae)?ae.dataset.p:null;const c=calc(S),y=c.out.find(x=>x.r.y===1)||c.out[0],n=Math.ceil(S.reqMW/(S.pcsMW*S.pcsOver/100))+ +S.pcsRed,tot=n*S.pcsMW,util=S.reqMW/tot*100,bat=S.N*S.cMW;
+ const aug=Object.values(S.aug).reduce((a,b)=>a+ +b,0),init=S.N*S.costCont+n*S.costPcs+ +S.bop,ax=aug*S.costAug,ok=tot>=S.reqMW&&bat>=S.reqMW;
+ const G=[['pcsMW','PCS unit rating (MW)'],['pcsOver','PCS overload capability (%)'],['pcsRed','Redundant PCS units'],['costCont','Cost per container'],['costPcs','Cost per PCS unit'],['bop','BOP + EPC lump sum'],['costAug','Cost per augmentation container']];
+ let cur=y.dc,rows=[['Battery DC usable',y.dc,0]];[['lv','LV DC cable'],['pcs','PCS'],['idtc','PCS to IDT cable'],['idt','IDT'],['dcdb','DC DB'],['mv','MV cable + switchgear'],['mpt','Transformer'],['kv','11 kV cable'],['meas','Measurement']].forEach(([k,l])=>{const nx=cur*P(S.eff[k]);rows.push([l,nx,cur-nx]);cur=nx});
+ const ax2=(S.N*S.auxD+S.other+S.standby)*S.Td;rows.push(['Auxiliary energy',cur-ax2,ax2]);
+ const big=rows.slice(1).sort((a,b)=>b[2]-a[2])[0];window._big=big;
+ $('ds').innerHTML=`<h2>PCS sizing</h2><div class="card kv"><div><label>PCS units</label><div class="big">${n}</div></div><div><label>Total PCS</label><div class="big">${f2(tot)} MW</div></div><div><label>PCS utilisation</label><b>${f2(util)}%</b></div><div><label>DC/AC ratio (battery MW / PCS MW)</label><b>${f2(bat/tot)}</b></div><div><label>PCS supports battery + required power</label>${B(ok)}</div><div><label>PCS C-rate (PCS MW / nameplate MWh)</label><b>${f2(tot/(S.N*S.cap))} C</b></div></div>
+ <div class="card grid">${G.map(([k,l])=>`<div><label>${l}</label><input type="number" step="any" data-p="${k}" value="${S[k]}"></div>`).join('')}</div>
+ <h2>Economics</h2><div class="card kv"><div><label>Initial CAPEX</label><b>${f2(init)}</b></div><div><label>Augmentation CAPEX</label><b>${f2(ax)}</b></div><div><label>Total CAPEX</label><div class="big">${f2(init+ax)}</div></div><div><label>Per MWh nameplate / per MW required</label><b>${f2((init+ax)/(S.N*S.cap))} / ${f2((init+ax)/S.reqMW)}</b></div></div>
+ <h2>Year-1 loss waterfall (MWh)</h2><div class="card tw"><table><tr><th>Stage</th><th>Energy after</th><th>Lost</th></tr>${rows.map(r=>`<tr><td>${r[0]}</td><td>${f2(r[1])}</td><td>${r[2]?f2(r[2]):'-'}</td></tr>`).join('')}</table></div>`;if(dp){const el=$('ds').querySelector(`[data-p="${dp}"]`);if(el)el.focus()}}
+function answer(q){q=q.toLowerCase();const c=calc(S),o=c.out,bad=o.filter(x=>!x.pass),m=q.match(/(?:year|y)\s*(\d+)/),why=x=>Object.entries(x.ok).filter(e=>!e[1]).map(e=>e[0]).join(', ');
+ if(m){const x=o.find(z=>z.r.y===+m[1]);if(!x)return'That year is outside the model.';return x.pass?`Year ${m[1]} passes: ${f2(x.totD)} MWh delivered vs ${f2(x.r.req)} required, RTE ${f2(x.rte)}%.`:`Year ${m[1]} fails on ${why(x)}. Delivered ${f2(x.totD)} MWh vs ${f2(x.r.req)} required (${f2(x.totD-x.r.req)}), RTE ${f2(x.rte)}% vs ${S.reqRTE}%, C-rate ${f2(x.cr)} vs ${S.cMax}.`}
+ if(/container|how many/.test(q)){const n=minN(S);return`You have ${S.N} initial containers. The smallest count passing all ${o.length} years is ${n??'not found up to 300'}. ${bad.length?'Failing years: '+bad.map(x=>x.r.l).join(', ')+'.':'All years pass.'}`}
+ if(/loss|poi/.test(q))return window._big?`Largest year-1 loss is ${window._big[0]} at ${f2(window._big[2])} MWh. Total chain efficiency is ${f2(c.chain*100)}%.`:'Open the Design tab first.';
+ if(/rte|efficien/.test(q)){const a=o.find(x=>x.r.y===1)||o[0];return`Year-1 AC RTE is ${f2(a.rte)}% including aux and ${f2(a.rteEx)}% excluding. Charging draws ${f2(a.totC)} MWh at POI to deliver ${f2(a.totD)} MWh. Lower DC-DC RTE, aux load or chain efficiency all reduce it.`}
+ if(/pcs|oversiz/.test(q)){const n=Math.ceil(S.reqMW/(S.pcsMW*S.pcsOver/100))+ +S.pcsRed;return`${n} PCS unit(s) of ${S.pcsMW} MW = ${f2(n*S.pcsMW)} MW for ${S.reqMW} MW required: utilisation ${f2(S.reqMW/(n*S.pcsMW)*100)}%.`}
+ if(/fail|compl|pass|why/.test(q))return bad.length?`${bad.length} year(s) fail: ${bad.map(x=>x.r.l+' ('+why(x)+')').join('; ')}.`:'Every year passes energy, RTE, power and C-rate checks.';
+ return'I answer from your current numbers. Try: "why does year 12 fail", "how many containers", "which loss is largest", "why is RTE low", "is PCS oversized".'}
+function askUI(){$('ak').innerHTML='<div class="card"><label>Ask about this design</label><input id="aq" placeholder="Why does year 12 fail?"><button class="act" id="ab" style="margin-top:8px">Ask</button></div><div class="card"><pre id="aa">Answers use only the calculated data for this design.</pre></div>';$('ab').onclick=()=>{design();$('aa').textContent=answer($('aq').value)}}
+let TOK='',PID=null,PNAME='';try{TOK=sessionStorage.getItem('bt')||''}catch(e){}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(m,p,b,raw){const r=await fetch(p,{method:m,headers:{'Content-Type':'application/json',...(TOK?{Authorization:'Bearer '+TOK}:{})},body:b?JSON.stringify(b):undefined});
+ if(raw&&r.ok)return r;let d={};try{d=await r.json()}catch(e){}
+ if(!r.ok){if(r.status===401){TOK='';try{sessionStorage.removeItem('bt')}catch(e){}}throw new Error(d.error||('HTTP '+r.status))}return d}
+const msg=(t,bad)=>{const m=$('am');if(m){m.className=bad?'f':'p';m.textContent=t}};
+const payload=()=>JSON.parse(JSON.stringify(S));
+async function acct(){
+ if(!TOK){$('ac').innerHTML='<div class="card"><b>Sign in to save projects on the server</b><div class="sub">Works when the app is opened from the BESS server, not as a standalone file.</div><label style="margin-top:8px">Email</label><input id="ae" type="email" autocomplete="username"><label style="margin-top:8px">Password (8+ characters)</label><input id="ap" type="password" autocomplete="current-password"><div class="kv" style="margin-top:8px"><button class="act" id="al">Log in</button><button class="act" id="ar">Register</button></div><div id="am" class="f" style="margin-top:8px"></div></div>';
+  const go=p=>async()=>{try{const d=await api('POST','/api/'+p,{email:$('ae').value,password:$('ap').value});TOK=d.token;try{sessionStorage.setItem('bt',TOK)}catch(e){}acct()}catch(e){msg(e.message,1)}};
+  $('al').onclick=go('login');$('ar').onclick=go('register');return}
+ let L=[];try{L=await api('GET','/api/projects')}catch(e){return acct()}
+ $('ac').innerHTML=`<div class="card"><b>${PID?'Project: '+esc(PNAME):'No project open'}</b><label style="margin-top:8px">Project name</label><input id="an" value="${esc(PNAME||'')}"><div class="kv" style="margin-top:8px"><button class="act" id="as">Save as new project</button><button class="act" id="av" ${PID?'':'disabled'}>Save new version</button><button class="act" id="ak2" ${PID?'':'disabled'}>Verify on server</button><button class="act" id="ao">Log out</button></div>${PID?'<div class="kv" style="margin-top:8px"><button class="act" id="rc">Download CSV</button><button class="act" id="rx">Download Excel</button></div>':''}<div id="am" style="margin-top:8px"></div></div>
+ <h2>Your projects</h2><div class="card">${L.length?L.map(p=>`<div style="display:flex;gap:6px;margin:4px 0"><button class="act" data-open="${p.id}" style="flex:1;text-align:left">${esc(p.name)}</button><button class="act" data-del="${p.id}" style="width:auto">Delete</button></div>`).join(''):'<div class="sub">No projects yet.</div>'}</div><div id="vs"></div>`;
+ $('ao').onclick=()=>{TOK='';PID=null;try{sessionStorage.removeItem('bt')}catch(e){}acct()};
+ $('as').onclick=async()=>{try{const d=await api('POST','/api/projects',{name:$('an').value||'Untitled',inputs:payload()});PID=d.id;PNAME=$('an').value||'Untitled';await acct();msg('Saved as version '+d.version)}catch(e){msg(e.message,1)}};
+ if(PID){$('av').onclick=async()=>{try{const d=await api('PUT','/api/projects/'+PID,{inputs:payload()});await acct();msg('Saved version '+d.version)}catch(e){msg(e.message,1)}};
+  $('ak2').onclick=async()=>{try{const r=await api('POST','/api/projects/'+PID+'/calculate',{}),loc=calc(S);const d=Math.max(...r.rows.map((x,i)=>Math.abs(x.poi_disch-loc.out[i].totD)));msg(d<1e-6?'Server recalculation matches the browser on all '+r.rows.length+' years. Server pass: '+r.pass:'Mismatch of '+d.toExponential(2)+' MWh. The server value is the official one.',d>=1e-6)}catch(e){msg(e.message,1)}};
+  const dl=f=>async()=>{try{const r=await api('GET','/api/projects/'+PID+'/report?fmt='+f,null,1),a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='bess-report.'+f;a.click()}catch(e){msg(e.message,1)}};$('rc').onclick=dl('csv');$('rx').onclick=dl('xlsx');
+  try{const V=await api('GET','/api/projects/'+PID+'/versions');$('vs').innerHTML='<h2>Versions</h2><div class="card">'+V.map(v=>`<div style="margin:6px 0"><b>v${v.n}</b> ${v.pass?'<span class="p">COMPLIANT</span>':'<span class="f">NOT COMPLIANT</span>'} year-1 ${f2(v.poi_y1)} MWh, ${v.years_ok}/${v.years} years ok ${v.n>1?`<button class="act" data-cmp="${v.n}" style="width:auto;margin-left:6px">Compare with v${v.n-1}</button>`:''}</div>`).join('')+'<pre id="cm"></pre></div>'}catch(e){}}
+ $('ac').onclick=async e=>{const t=e.target.dataset;try{
+  if(t.open){const d=await api('GET','/api/projects/'+t.open);PID=d.id;PNAME=d.name;S=Object.assign(JSON.parse(JSON.stringify(D)),d.inputs);inputs();ytab();loadUI();results();design();await acct();msg('Opened version '+d.version)}
+  if(t.del&&confirm('Delete this project and all its versions?')){await api('DELETE','/api/projects/'+t.del);if(PID===t.del){PID=null;PNAME=''}acct()}
+  if(t.cmp){const n=+t.cmp,d=await api('GET',`/api/projects/${PID}/compare?a=${n-1}&b=${n}`);$('cm').textContent='Input changes: '+(Object.entries(d.input_changes).map(([k,v])=>k+' '+JSON.stringify(v[0])+' to '+JSON.stringify(v[1])).join('; ')||'none')+'\nYear-1 POI: '+f2(d.a.poi_y1)+' to '+f2(d.b.poi_y1)+' MWh\nFinal-year POI: '+f2(d.a.poi_last)+' to '+f2(d.b.poi_last)+' MWh\nFinal-year RTE: '+f2(d.a.rte_last)+' to '+f2(d.b.rte_last)+' %\nCompliant years: '+d.a.years_ok+' to '+d.b.years_ok}}catch(err){msg(err.message,1)}}}
+function run(){try{localStorage.setItem('bess1',JSON.stringify(S))}catch(e){}results();design()}
+document.addEventListener('input',e=>{const t=e.target,v=+t.value;if(t.dataset.p){setP(S,t.dataset.p,v);if(['life','fat','sat'].includes(t.dataset.p)){S.fat=Math.min(6,Math.max(0,S.fat));S.sat=Math.min(6,Math.max(0,S.sat));build();ytab()}
+ if(t.dataset.p==='reqE')S.rows.forEach(r=>r.req=v),ytab();run()}
+ else if(t.dataset.r!==undefined){S.rows[t.dataset.r][t.dataset.k]=v;run()}
+ else if(t.dataset.aug){S.aug[t.dataset.aug]=v;run()}});
+$('nav').onclick=e=>{const t=e.target.dataset.t;if(!t)return;document.querySelectorAll('nav button,section').forEach(x=>x.classList.remove('on'));e.target.classList.add('on');$(t).classList.add('on');if(t==='ac')acct();if(t==='rs')results();if(t==='ds')design()};
+if(!S.rows.length)build();inputs();ytab();what();loadUI();askUI();results();design();
+</script></body></html>
